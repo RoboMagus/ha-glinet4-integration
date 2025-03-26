@@ -10,6 +10,7 @@ from .const import DATA_GLINET, DOMAIN
 from .router import GLinetRouter
 
 PLATFORMS = [
+    "button",
     "device_tracker",
     "sensor",
     "switch",

@@ -1,0 +1,4 @@
+[submodule "gli4py"]
+	path = gli4py
+	url = https://github.com/RoboMagus/gli4py
+	branch = dev-merged

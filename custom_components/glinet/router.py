@@ -67,6 +67,21 @@ class DeviceInterfaceType(StrEnum):
     WIFI_6_GUEST = "6GHz Guest"
 
 
+def iface_type_from_name(iface_name: str):
+    """Map wifi interface to types reported by glipy."""
+    mapping = {
+        "wifi2g": 0,
+        "wifi5g": 1,
+        "cable": 2,
+        "guest2g": 3,
+        "guest5g": 4,
+        "unknown": 5,
+        "wifi6g": 11,
+        "guest6g": 12,
+    }
+    return mapping.get(iface_name, -1)
+
+
 class GLinetRouter:
     """representation of a GLinet router.
 
@@ -100,7 +115,7 @@ class GLinetRouter:
 
         # State
         self._devices: dict[str, ClientDevInfo] = {}
-        self._connected_devices: int = 0
+        self._connected_devices: dict[str, int] = {}
         self._wifi_ifaces: dict[str, WifiInterface] = {}
         self._system_status: dict = {}
         self._wireguard_clients: dict[str, WireGuardClient] = {}
@@ -335,7 +350,9 @@ class GLinetRouter:
                 type(wrt_devices),
             )
             if wrt_devices is None or wrt_devices == {}:
-                self._connected_devices = 0
+                self._connected_devices["total"] = 0
+                for iface_name in self._wifi_ifaces:
+                    self._connected_devices[iface_name] = 0
             return
         consider_home = self._options.get(
             CONF_CONSIDER_HOME, DEFAULT_CONSIDER_HOME.total_seconds()
@@ -367,7 +384,12 @@ class GLinetRouter:
         if new_device:
             async_dispatcher_send(self.hass, self.signal_device_new)
 
-        self._connected_devices = len(wrt_devices)
+        self._connected_devices["total"] = len(wrt_devices)
+        for iface_name in self._wifi_ifaces:
+            iface_type = iface_type_from_name(iface_name)
+            self._connected_devices[iface_name] = sum(
+                map(lambda dev: dev.get("type", 5) == iface_type, wrt_devices.values())
+            )
 
     async def update_wifi_ifaces_state(self) -> None:
         """Make a call to the API to get the WiFi ifaces config state."""
@@ -570,6 +592,12 @@ class GLinetRouter:
         """Property for system status."""
 
         return self._system_status
+
+    @property
+    def connected_devices(self) -> dict:
+        """Property for connected_devices per interface."""
+
+        return self._connected_devices
 
 
 @dataclass

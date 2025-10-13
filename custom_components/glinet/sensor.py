@@ -150,7 +150,7 @@ async def async_setup_entry(
     _LOGGER.debug("Setting up GL-iNet Sensors")
 
     router: GLinetRouter = entry.runtime_data
-    sensors: list[SystemStatusSensor | SystemUptimeSensor] = [
+    sensors: list[SystemStatusSensor | ConnectedDevicesSensor | SystemUptimeSensor] = [
         SystemStatusSensor(router=router, entity_description=description)
         for description in SYSTEM_SENSORS
     ]
@@ -173,6 +173,24 @@ async def async_setup_entry(
     for sensor in sensors:
         if sensor.native_value is None:
             sensors.remove(sensor)
+
+    _LOGGER.debug(f"Counters for WiFi ifaces: {router.wifi_ifaces}")
+    for iface_name in list(router.wifi_ifaces) + ["total"]:
+        sensors.append(
+            ConnectedDevicesSensor(
+                router=router,
+                entity_description=SystemStatusEntityDescription(
+                    key=f"connected_clients_{iface_name}",
+                    name=f"{iface_name} connected clients",
+                    has_entity_name=True,
+                    icon="mdi:counter",
+                    entity_category=EntityCategory.DIAGNOSTIC,
+                    state_class=SensorStateClass.MEASUREMENT,
+                    suggested_display_precision=0,
+                    value_fn=lambda a: None,
+                ),
+            )
+        )
 
     async_add_entities(sensors, True)
 
@@ -220,6 +238,17 @@ class SystemStatusSensor(GliSensorBase):
     def native_value(self) -> int | float | None:
         """Return the native value of the sensor."""
         return self.entity_description.value_fn(self.router.system_status)
+
+
+class ConnectedDevicesSensor(GliSensorBase):
+    """GL-iNet connected devices sensor class."""
+
+    @property
+    def native_value(self) -> int | float | None:
+        """Return the native value of the sensor."""
+        return self.router.connected_devices.get(
+            self.entity_description.key.replace("connected_clients_", "")
+        )
 
 
 class SystemUptimeSensor(GliSensorBase):
